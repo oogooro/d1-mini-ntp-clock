@@ -14,6 +14,15 @@ const bool CZAS_ZIMOWY = true;
 
 NTPClient timeClient(ntpUDP, "pl.pool.ntp.org", CZAS_ZIMOWY ? 3600 : 7200, 60000);
 
+const byte loading[] = {
+    0b00000001,
+    0b00000010,
+    0b00000100,
+    0b00001000,
+    0b00010000,
+    0b00100000,
+};
+
 void setup() {
   pinMode(A0, INPUT);
 
@@ -23,16 +32,21 @@ void setup() {
   Wire.begin();
   d.init();
   d.setBrightness(1);
-  d.displayString("8888");
-  d.setDot(1, true);
 
   WiFi.begin(SECRET_SSID, SECRET_PASSWORD);
 
   Serial.printf("Connecting to: %s", SECRET_SSID);
 
+  byte step = 0; 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
+    delay(250);
     Serial.print(".");
+
+    for (byte i = 0; i < 4; i++)
+      d.setPosition(i, loading[step]);
+
+    step++;
+    if (step >= 6) step = 0;
   }
 
   Serial.print('\n');
