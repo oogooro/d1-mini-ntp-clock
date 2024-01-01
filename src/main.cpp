@@ -5,14 +5,15 @@
 #include <Wire.h>
 #include <TM1650.h>
 #include "secrets.h"
+#include <EEPROM.h>
 
 TM1650 d;
 
 WiFiUDP ntpUDP;
 
-const bool CZAS_ZIMOWY = true;
+int timeOffset = 3600;
 
-NTPClient timeClient(ntpUDP, "pl.pool.ntp.org", CZAS_ZIMOWY ? 3600 : 7200, 60000);
+NTPClient timeClient(ntpUDP, "pl.pool.ntp.org", timeOffset, 60000);
 
 const byte loading[] = {
     0b00000001,
@@ -54,6 +55,19 @@ void setup() {
   Serial.print('\n');
 
   timeClient.begin();
+
+  Serial.println("Timezone -1: , | Timezone +1: . | Timezone 0: / | Write changes: [RETURN]");
+
+  EEPROM.begin(4);
+  EEPROM.get(0, timeOffset);
+
+  if (timeOffset == -1) {
+    timeOffset = 0;
+    EEPROM.put(0, timeOffset);
+    EEPROM.commit();
+  }
+
+  timeClient.setTimeOffset(timeOffset);
 }
 
 bool dotOn = true;
@@ -97,4 +111,32 @@ void loop() {
   delay(500);
   d.setDot(1, dotOn);
   delay(500);
+
+  while (Serial.available() > 0) {
+    char command = Serial.read();
+
+    if (command == ',') {
+      timeOffset -= 3600;
+      timeClient.setTimeOffset(timeOffset);
+      Serial.print("Timezone offset: ");
+      Serial.println(timeOffset);
+    } else if (command == '.') {
+      timeOffset += 3600;
+      timeClient.setTimeOffset(timeOffset);
+      Serial.print("Timezone offset: ");
+      Serial.println(timeOffset);
+    } else if (command == '/') {
+      timeOffset = 0;
+      timeClient.setTimeOffset(timeOffset);
+      Serial.print("Timezone offset: ");
+      Serial.println(timeOffset);
+    } else if (command == '\n') {
+      EEPROM.put(0, timeOffset);
+
+      if (EEPROM.commit())
+        Serial.println("Wrote to EEPROM");
+      else
+        Serial.println("Failed to write to EEPROM");
+    }
+  }
 }
