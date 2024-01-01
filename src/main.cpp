@@ -72,45 +72,47 @@ void setup() {
 
 bool dotOn = true;
 bool networkLostMessageShown = false;
+ulong timestamp = millis();
 
 void loop() {
-  if (WiFi.status() == WL_CONNECTED) timeClient.update();
-
-  if (WiFi.status() != WL_CONNECTED) {
-    if (!networkLostMessageShown) {
-      networkLostMessageShown = true;
-      d.displayString("NEt ");
-      delay(2000);
-
-      d.displayString("LOSt");
-      delay(2000);
-    }
-  } else {
-    networkLostMessageShown = false;
-  }
-
   int sensor = analogRead(A0);
   int brightness = map(sensor, 1, 1024, 1, 7);
 
   d.setBrightness(brightness);
 
-  int hours = timeClient.getHours();
-  int minutes = timeClient.getMinutes();
+  if (1000UL <= millis() - timestamp) {
+    timestamp = millis();
 
-  String hoursStr = hours < 10 ? "0" + String(hours) : String(hours);
-  String minuteStr = minutes < 10 ? "0" + String(minutes) : String(minutes);
+    if (WiFi.status() == WL_CONNECTED) timeClient.update();
 
-  char buffer[5];
+    if (WiFi.status() != WL_CONNECTED) {
+      if (!networkLostMessageShown) {
+        networkLostMessageShown = true;
+        d.displayString("NEt ");
+        delay(2000);
 
-  (hoursStr + minuteStr).toCharArray(buffer, 5);
+        d.displayString("LOSt");
+        delay(2000);
+      }
+    } else {
+      networkLostMessageShown = false;
+    }
 
-  d.displayString(buffer);
-  d.setDot(1, dotOn);
-  dotOn = !dotOn;
+    int hours = timeClient.getHours();
+    int minutes = timeClient.getMinutes();
 
-  delay(500);
-  d.setDot(1, dotOn);
-  delay(500);
+    String hoursStr = hours < 10 ? "0" + String(hours) : String(hours);
+    String minuteStr = minutes < 10 ? "0" + String(minutes) : String(minutes);
+
+    char buffer[5];
+
+    (hoursStr + minuteStr).toCharArray(buffer, 5);
+
+    d.displayString(buffer);
+    
+    d.setDot(1, dotOn);
+    dotOn = !dotOn;
+  }
 
   while (Serial.available() > 0) {
     char command = Serial.read();
@@ -139,4 +141,6 @@ void loop() {
         Serial.println("Failed to write to EEPROM");
     }
   }
+
+  delay(50); // for stability
 }
