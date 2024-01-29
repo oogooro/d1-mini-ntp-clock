@@ -34,6 +34,7 @@ void setup() {
   d.init();
   d.setBrightness(1);
 
+  WiFi.setHostname("ESP-CLOCK");
   WiFi.begin(SECRET_SSID, SECRET_PASSWORD);
 
   Serial.printf("Connecting to: %s", SECRET_SSID);
