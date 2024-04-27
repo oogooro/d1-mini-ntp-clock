@@ -7,6 +7,8 @@
 #include "secrets.h"
 #include <EEPROM.h>
 
+#define NIGHT_MODE true
+
 TM1650 d;
 
 WiFiUDP ntpUDP;
@@ -74,12 +76,24 @@ void setup() {
 bool dotOn = true;
 bool networkLostMessageShown = false;
 ulong timestamp = millis();
+int previousBrightness = 0;
+ulong brightnessChangedTimestamp = millis();
 
 void loop() {
   int sensor = analogRead(A0);
-  int brightness = map(sensor, 1, 1024, 1, 7);
+  int brightness = map(sensor, 1, 1024, NIGHT_MODE ? 0 : 1, 7);
+  if (brightness != previousBrightness) {
+    if (1000UL <= millis() - brightnessChangedTimestamp) {
+      brightnessChangedTimestamp = millis();
+      previousBrightness = brightness;
 
-  d.setBrightness(brightness);
+      if (brightness == 0) d.displayOff();
+      else {
+        d.displayOn();
+        d.setBrightness(brightness);
+      }
+    }
+  }
 
   if (1000UL <= millis() - timestamp) {
     timestamp = millis();
