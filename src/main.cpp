@@ -83,7 +83,7 @@ void loop() {
   int sensor = analogRead(A0);
   int brightness = map(sensor, 1, 1024, NIGHT_MODE ? 0 : 1, 7);
   if (brightness != previousBrightness) {
-    if (1000UL <= millis() - brightnessChangedTimestamp) {
+    if (2000UL <= millis() - brightnessChangedTimestamp) {
       brightnessChangedTimestamp = millis();
       previousBrightness = brightness;
 
