@@ -5,7 +5,7 @@
 #include <Wire.h>
 #include <TM1650.h>
 #include "secrets.h"
-#include <EEPROM.h>
+#include <Timezone.h>
 
 #define NIGHT_MODE true
 
@@ -13,9 +13,12 @@ TM1650 d;
 
 WiFiUDP ntpUDP;
 
-int timeOffset = 3600;
+NTPClient timeClient(ntpUDP, "pl.pool.ntp.org", 0, 60000);
 
-NTPClient timeClient(ntpUDP, "pl.pool.ntp.org", timeOffset, 60000);
+TimeChangeRule dstRule = { "CEST", Last, Sun, Mar, 2, 120 };
+TimeChangeRule stdRule = { "CET", Last, Sun, Oct, 3, 60 };
+
+Timezone tz(dstRule, stdRule);
 
 const byte loading[] = {
     0b00000001,
@@ -58,19 +61,6 @@ void setup() {
   Serial.print('\n');
 
   timeClient.begin();
-
-  Serial.println("Timezone -1: , | Timezone +1: . | Timezone 0: / | Write changes: [RETURN]");
-
-  EEPROM.begin(4);
-  EEPROM.get(0, timeOffset);
-
-  if (timeOffset == -1) {
-    timeOffset = 0;
-    EEPROM.put(0, timeOffset);
-    EEPROM.commit();
-  }
-
-  timeClient.setTimeOffset(timeOffset);
 }
 
 bool dotOn = true;
@@ -98,7 +88,10 @@ void loop() {
   if (1000UL <= millis() - timestamp) {
     timestamp = millis();
 
-    if (WiFi.status() == WL_CONNECTED) timeClient.update();
+    if (WiFi.status() == WL_CONNECTED) {
+      bool timeUpdateSuccess = timeClient.update();
+      if (timeUpdateSuccess) setTime(tz.toLocal(timeClient.getEpochTime()));
+    }
 
     if (WiFi.status() != WL_CONNECTED) {
       if (!networkLostMessageShown) {
@@ -113,8 +106,8 @@ void loop() {
       networkLostMessageShown = false;
     }
 
-    int hours = timeClient.getHours();
-    int minutes = timeClient.getMinutes();
+    int hours = hour();
+    int minutes = minute();
 
     String hoursStr = hours < 10 ? "0" + String(hours) : String(hours);
     String minuteStr = minutes < 10 ? "0" + String(minutes) : String(minutes);
@@ -127,34 +120,6 @@ void loop() {
     
     d.setDot(1, dotOn);
     dotOn = !dotOn;
-  }
-
-  while (Serial.available() > 0) {
-    char command = Serial.read();
-
-    if (command == ',') {
-      timeOffset -= 3600;
-      timeClient.setTimeOffset(timeOffset);
-      Serial.print("Timezone offset: ");
-      Serial.println(timeOffset);
-    } else if (command == '.') {
-      timeOffset += 3600;
-      timeClient.setTimeOffset(timeOffset);
-      Serial.print("Timezone offset: ");
-      Serial.println(timeOffset);
-    } else if (command == '/') {
-      timeOffset = 0;
-      timeClient.setTimeOffset(timeOffset);
-      Serial.print("Timezone offset: ");
-      Serial.println(timeOffset);
-    } else if (command == '\n') {
-      EEPROM.put(0, timeOffset);
-
-      if (EEPROM.commit())
-        Serial.println("Wrote to EEPROM");
-      else
-        Serial.println("Failed to write to EEPROM");
-    }
   }
 
   delay(50); // for stability
