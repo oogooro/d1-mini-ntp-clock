@@ -7,9 +7,7 @@
 #include "secrets.h"
 #include <Timezone.h>
 
-#define NIGHT_MODE true
-
-TM1650 d;
+TM1650 display;
 
 WiFiUDP ntpUDP;
 
@@ -20,7 +18,7 @@ TimeChangeRule stdRule = { "CET", Last, Sun, Oct, 3, 60 };
 
 Timezone tz(dstRule, stdRule);
 
-const byte loading[] = {
+const char connecting[] = {
     0b00000001,
     0b00000010,
     0b00000100,
@@ -36,28 +34,28 @@ void setup() {
   Serial.write("\n\n");
 
   Wire.begin();
-  d.init();
-  d.setBrightness(1);
+  display.init();
+  display.setBrightness(1);
 
   WiFi.setHostname("ESP-CLOCK");
   WiFi.begin(SECRET_SSID, SECRET_PASSWORD);
 
   Serial.printf("Connecting to: %s", SECRET_SSID);
 
-  byte step = 0; 
   while (WiFi.status() != WL_CONNECTED) {
-    delay(250);
-    Serial.print(".");
-
-    for (byte i = 0; i < 4; i++)
-      d.setPosition(i, loading[step]);
-
-    step++;
-    if (step >= 6) step = 0;
+    for (uint8_t i = 0; i <= 5; i++) {
+      for (byte k = 0; k < 4; k++) {
+        display.setPosition(k, connecting[i]);
+      }
+      delay(250);
+      Serial.print(".");
+    }
   }
 
   Serial.print('\n');
   Serial.println("Connected.");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
   Serial.print('\n');
 
   timeClient.begin();
@@ -65,24 +63,17 @@ void setup() {
 
 bool dotOn = true;
 bool networkLostMessageShown = false;
-ulong timestamp = millis();
-int previousBrightness = 0;
-ulong brightnessChangedTimestamp = millis();
+u_long timestamp = millis();
+uint16_t previousSensorValue = 0;
+const uint8_t sensorFilteringThreshold = 10;
 
 void loop() {
-  int sensor = analogRead(A0);
-  int brightness = map(sensor, 1, 1024, NIGHT_MODE ? 0 : 1, 7);
-  if (brightness != previousBrightness) {
-    if (2000UL <= millis() - brightnessChangedTimestamp) {
-      brightnessChangedTimestamp = millis();
-      previousBrightness = brightness;
+  uint16_t sensorValue = analogRead(A0);
 
-      if (brightness == 0) d.displayOff();
-      else {
-        d.displayOn();
-        d.setBrightness(brightness);
-      }
-    }
+  if (abs(sensorValue - previousSensorValue) > sensorFilteringThreshold) {
+    uint8_t brightness = map(sensorValue, 0, 1023, 1, 7);
+    display.setBrightness(brightness);
+    previousSensorValue = sensorValue;
   }
 
   if (1000UL <= millis() - timestamp) {
@@ -96,10 +87,10 @@ void loop() {
     if (WiFi.status() != WL_CONNECTED) {
       if (!networkLostMessageShown) {
         networkLostMessageShown = true;
-        d.displayString("NEt ");
+        display.displayString("NEt ");
         delay(2000);
 
-        d.displayString("LOSt");
+        display.displayString("LOSt");
         delay(2000);
       }
     } else {
@@ -116,9 +107,9 @@ void loop() {
 
     (hoursStr + minuteStr).toCharArray(buffer, 5);
 
-    d.displayString(buffer);
-    
-    d.setDot(1, dotOn);
+    display.displayString(buffer);
+
+    display.setDot(1, dotOn);
     dotOn = !dotOn;
   }
 
